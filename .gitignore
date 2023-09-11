@@ -1,0 +1,35 @@
+# Compiled Python files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+env/
+
+# IDE files
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Dependency directories
+lib/
+lib64/
+bin/
+include/
+share/
+
+# Package files
+*.egg-info/
+dist/
+build/
+
+# Database files
+*.db
+
+# macOS files
+.DS_Store
