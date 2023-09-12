@@ -7,9 +7,10 @@ from sqlalchemy.exc import IntegrityError
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import db, User, Session, Chat, FAQ
+from models import db, User, Session, Chat, FAQ, File
 from middleware import token_required
-from helper import generate_response_35
+from helper import generate_response_35, convert_file_to_text
+from utils import generate_unique_filename, getS_short_type_from_real_type, split_string
 
 app = Flask(__name__)
 CORS(app, origins=['*'])
@@ -82,14 +83,28 @@ def admin_login():
             'exp': datetime.utcnow() + timedelta(minutes=30)
         }, app.config['SECRET_KEY'])
 
-        return jsonify({'token': token})
+        session = Session.query.filter_by(user_id=user.id).first()
+        session_id = ""
+        if session:
+            session_id = session.id
+        else:
+            admin_session = Session(
+                user_id=user.id
+            )
+            db.session.add(admin_session)
+            db.session.commit()
+            session_id = admin_session.id
+
+        return jsonify({
+            'token': token,
+            'session_id': session_id
+        })
     else:
         return jsonify({'message': 'Bad request'}), 404
 
 
 @app.route("/chats/<int:session_id>", methods=['GET', 'POST'])
 def chat(session_id):
-    print(session_id)
     if request.method == 'GET':
         session = Session.query.filter_by(id=session_id).first()
         chat_data = []
@@ -98,12 +113,23 @@ def chat(session_id):
             chats = Chat.query.filter_by(
                 session_id=session_id).order_by(Chat.updated_at)
             for chat in chats:
-                chat_data.append({
+                chat_detail = {
                     'id': chat.id,
                     'text': chat.text,
                     'is_bot': chat.is_bot == 'true',
-                    'datetime': chat.updated_at
-                })
+                    'datetime': chat.updated_at,
+                }
+                if chat.file_id:
+                    file = File.query.filter_by(id=chat.file_id).first()
+                    file_data = {
+                        'id': file.id,
+                        'name': file.origin_name,
+                        'size': file.size,
+                        'text': file.text
+                    }
+                    chat_detail['file'] = file_data
+
+                chat_data.append(chat_detail)
             if session.user_id:
                 user = User.query.filter_by(id=session.user_id).first()
                 user_data = {
@@ -121,33 +147,149 @@ def chat(session_id):
             'user': user_data
         })
     elif request.method == 'POST':
-        text = request.json['text']
-        session = Session.query.filter_by(id=session_id).first()
-        if session:
+        if request.is_json:
+            text = request.json['text']
+            session = Session.query.filter_by(id=session_id).first()
+            chat_data = get_admin_prompt()
+            if session:
+                chats = Chat.query.filter_by(
+                    session_id=session_id).order_by(Chat.updated_at.desc())
+                for chat in chats:
+                    if chat.is_include == False:
+                        continue
+                    chat_data.append({
+                        "role": "system" if chat.is_bot == 'true' else "user",
+                        "content": chat.text
+                    })
+                chat_data.append({
+                    "role": "user",
+                    "content": text
+                })
+                ai_message = generate_response_35(chat_data)
+
+                new_chat_user = Chat(
+                    session_id=session.id,
+                    text=text
+                )
+                db.session.add(new_chat_user)
+                db.session.commit()
+
+                new_chat_bot = Chat(
+                    session_id=session.id,
+                    text=ai_message,
+                    is_bot=True
+                )
+                db.session.add(new_chat_bot)
+                db.session.commit()
+
+                return jsonify({
+                    'message': 'Chat saved successfully',
+                    'data': {
+                        'chat_id': new_chat_user.id,
+                        'text_user': text,
+                        'text_ai': ai_message
+                    }
+                })
+            else:
+                new_session = Session()
+                db.session.add(new_session)
+                db.session.commit()
+
+                chat_data.append({
+                    "role": "user",
+                    "content": text
+                })
+                ai_message = generate_response_35(chat_data)
+
+                new_chat_user = Chat(
+                    session_id=new_session.id,
+                    text=text
+                )
+                db.session.add(new_chat_user)
+                db.session.commit()
+
+                new_chat_bot = Chat(
+                    session_id=new_session.id,
+                    text=ai_message,
+                    is_bot=True
+                )
+                db.session.add(new_chat_bot)
+                db.session.commit()
+                return jsonify({
+                    'message': 'Session created and chat saved successfully',
+                    'data': {
+                        'session_id': new_session.id,
+                        'chat_id': new_chat_user.id,
+                        'text_user': text,
+                        'text_ai': ai_message
+                    }
+                })
+        else:
+            file = request.files['file']
+            if file.filename == '':
+                return 'No file selected', 400
+            text = request.form.get('text')
+
+            upload_folder = 'uploads/'
+            os.makedirs(upload_folder, exist_ok=True)
+
+            origin_name = file.filename
+            file_data = file.read()
+            file_type = file.content_type
+            file_size = len(file_data)
+            file_path = upload_folder + generate_unique_filename() + '_' + file.filename
+
+            try:
+                with open(file_path, 'wb') as f:
+                    f.write(file_data)
+            except Exception as e:
+                return f'Error saving the file: {str(e)}', 500
+
+            file_content = convert_file_to_text(
+                file_path, getS_short_type_from_real_type(file_type))
+
+            new_file = File(
+                origin_name=origin_name,
+                size=file_size,
+                type=file_type,
+                path='/'+file_path,
+                text=file_content
+            )
+            db.session.add(new_file)
+            db.session.commit()
+
+            content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
+
             chats = Chat.query.filter_by(
                 session_id=session_id).order_by(Chat.updated_at.desc())
             chat_data = []
             for chat in chats:
+                if chat.is_include == False:
+                    continue
                 chat_data.append({
                     "role": "system" if chat.is_bot == 'true' else "user",
                     "content": chat.text
                 })
-            chat_data.append({
-                "role": "user",
-                "content": text
-            })
-            print(chat_data)
+
+            content_array = split_string(content_text, 12000)
+            for content in content_array:
+                chat_data.append({
+                    "role": "user",
+                    "content": content
+                })
+
             ai_message = generate_response_35(chat_data)
 
             new_chat_user = Chat(
-                session_id=session.id,
-                text=text
+                session_id=session_id,
+                text=text,
+                file_id=new_file.id
             )
             db.session.add(new_chat_user)
             db.session.commit()
 
             new_chat_bot = Chat(
-                session_id=session.id,
+                session_id=session_id,
                 text=ai_message,
                 is_bot=True
             )
@@ -155,44 +297,9 @@ def chat(session_id):
             db.session.commit()
 
             return jsonify({
-                'message': 'Chat saved successfully',
+                'message': 'OK',
                 'data': {
-                    'chat_id': new_chat_user.id,
-                    'text_user': text,
-                    'text_ai': ai_message
-                }
-            })
-        else:
-            new_session = Session()
-            db.session.add(new_session)
-            db.session.commit()
-
-            chat_data = []
-            chat_data.append({
-                "role": "user",
-                "content": text
-            })
-            ai_message = generate_response_35(chat_data)
-
-            new_chat_user = Chat(
-                session_id=new_session.id,
-                text=text
-            )
-            db.session.add(new_chat_user)
-            db.session.commit()
-
-            new_chat_bot = Chat(
-                session_id=new_session.id,
-                text=ai_message,
-                is_bot=True
-            )
-            db.session.add(new_chat_bot)
-            db.session.commit()
-            return jsonify({
-                'message': 'Session created and chat saved successfully',
-                'data': {
-                    'session_id': new_session.id,
-                    'chat_id': new_chat_user.id,
+                    'chat_id': '0',
                     'text_user': text,
                     'text_ai': ai_message
                 }
@@ -202,7 +309,8 @@ def chat(session_id):
 
 
 @app.route("/faq/<int:faq_id>", methods=['GET', 'POST', 'DELETE'])
-def handle_faq(faq_id):
+@token_required
+def handle_faq(current_user, faq_id):
     if request.method == 'GET':
         faqs = FAQ.query.filter_by()
         faq_data = []
@@ -256,17 +364,24 @@ def handle_faq(faq_id):
 
 
 @app.route('/users/<int:user_id>', methods=['GET', 'POST', 'DELETE'])
-def handle_user(user_id):
+@token_required
+def handle_user(current_user, user_id):
     if request.method == 'GET':
-        user = User.query.get(user_id)
-        user_data = {
-            'id': user.id,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'email': user.email,
-            'phone': user.phone,
-        }
-        return jsonify({'user': user_data})
+
+        users = User.query.filter_by()
+        user_data = []
+        for user in users:
+            user_data.append({
+                'id': user.id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'phone': user.phone,
+            })
+        return jsonify({
+            'message': 'OK',
+            'data': user_data,
+        })
 
     elif request.method == 'POST':
         user_data = request.get_json()
@@ -337,23 +452,29 @@ def handle_user(user_id):
         return jsonify({'message': 'User deleted successfully'})
 
 
-@app.route("/admin", methods=['POST'])
-@token_required
-def get_admin_info(current_user):
-    data = request.json
-    print(current_user)
-    admin = User.query.filter_by(is_admin=True).first()
-    admin_data = {
-        'id': admin.id,
-        'email': admin.email,
-        'first_name': admin.first_name,
-        'last_name': admin.last_name,
-        'phone': admin.phone
-    }
-    return jsonify({
-        'message': 'Getting Successfully',
-        'data': admin_data
-    })
+def get_admin_prompt():
+    admin_user = User.query.filter_by(is_admin=True).first()
+    admin_session = Session.query.filter_by(
+        user_id=admin_user.id).first()
+    admin_chats = Chat.query.filter_by(session_id=admin_session.id)
+    chat_data = []
+    for chat in admin_chats:
+        if chat.is_include == False:
+            continue
+        chat_data.append({
+            "role": "system" if chat.is_bot == 'true' else "user",
+            "content": chat.text
+        })
+        if chat.file_id:
+            file = File.query.filter_by(id=chat.file_id).first()
+            file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
+            content_array = split_string(file_content, 12000)
+            for content in content_array:
+                chat_data.append({
+                    "role": "user",
+                    "content": content
+                })
+    return chat_data
 
 
 if __name__ == "__main__":
