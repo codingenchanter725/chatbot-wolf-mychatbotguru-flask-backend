@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 from flask_migrate import Migrate
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -309,8 +310,7 @@ def chat(session_id):
 
 
 @app.route("/faq/<int:faq_id>", methods=['GET', 'POST', 'DELETE'])
-@token_required
-def handle_faq(current_user, faq_id):
+def handle_faq(faq_id):
     if request.method == 'GET':
         faqs = FAQ.query.filter_by()
         faq_data = []
@@ -450,6 +450,60 @@ def handle_user(current_user, user_id):
         db.session.delete(user)
         db.session.commit()
         return jsonify({'message': 'User deleted successfully'})
+
+
+@app.route('/admin', methods=['GET'])
+@token_required
+def analysis(current_user):
+    if request.method == "GET":
+        # Replace with your start time
+        start_time = datetime(2022, 1, 1, 0, 0, 0)
+        # Replace with your end time
+        end_time = datetime(2024, 1, 31, 23, 59, 59)
+        chat_count = Chat.query.filter(
+            Chat.updated_at >= start_time, Chat.updated_at <= end_time).count()
+        users = User.query.filter_by()
+        user_count = users.count()
+
+        total_chat_count_by_user = 0
+        max_chat_count_by_one_user = 0
+        max_duration = 0
+
+        for user in users:
+            session = Session.query.filter_by(user_id=user.id).first()
+            if session:
+                chats = Chat.query.filter_by(session_id=session.id).all()
+                chat_len = len(chats)
+                first_chat: datetime = chats[0].updated_at if chat_len > 0 else 0
+                last_chat: datetime = chats[-1].updated_at if chat_len > 0 else 0
+                duration = (
+                    last_chat - first_chat).total_seconds() if first_chat and last_chat else 0
+
+                total_chat_count_by_user += chat_len
+
+                if max_chat_count_by_one_user < chat_len:
+                    max_chat_count_by_one_user = chat_len
+
+                if max_duration < duration:
+                    max_duration = duration
+
+        average_chat_count_by_user = total_chat_count_by_user / user_count
+        total_download_count = db.session.query(func.sum(Session.download_count)).scalar()
+
+        print(total_download_count)
+        return jsonify({
+            'message': "OK",
+            'data': {
+                'chat_count': chat_count,
+                'user_count': user_count,
+                'average_chat_count_by_user': average_chat_count_by_user,
+                'max_duration': max_duration,
+                'max_chat_count_by_one_user': max_chat_count_by_one_user,
+                'total_download_count': total_download_count,
+            }
+        })
+    else:
+        return jsonify({'message': 'Bad request'}), 404
 
 
 def get_admin_prompt():

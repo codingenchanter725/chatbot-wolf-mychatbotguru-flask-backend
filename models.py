@@ -42,6 +42,7 @@ class Session(BaseModel):
     __tablename__ = "sessions"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    download_count = db.Column(db.Integer, default=0)
 
     chats = db.relationship('Chat', backref='session', lazy=True)
 
