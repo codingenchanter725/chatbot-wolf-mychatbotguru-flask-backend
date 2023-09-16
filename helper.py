@@ -32,6 +32,19 @@ def generate_response_35(prompt):
     return message
 
 
+def generate_response_4(prompt):
+    openai.organization = os.getenv('OPENAI_ORGANIZATION')
+    model_engine = "gpt-4"
+    print(model_engine)
+    response = openai.ChatCompletion.create(
+        model=model_engine,
+        messages=prompt,
+        temperature=0.5
+    )
+    message = response.choices[0].message.content.strip()
+    return message
+
+
 def read_text_from_txt(file_path):
     with open(file_path, 'r') as file:
         text = file.read()

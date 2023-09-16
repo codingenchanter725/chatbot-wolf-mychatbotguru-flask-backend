@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import db, User, Session, Chat, FAQ, File
 from middleware import token_required
-from helper import generate_response_35, convert_file_to_text
+from helper import generate_response_4, convert_file_to_text
 from utils import generate_unique_filename, getS_short_type_from_real_type, split_string
 
 app = Flask(__name__)
@@ -166,7 +166,7 @@ def chat(session_id):
                     "role": "user",
                     "content": text
                 })
-                ai_message = generate_response_35(chat_data)
+                ai_message = generate_response_4(chat_data)
 
                 new_chat_user = Chat(
                     session_id=session.id,
@@ -187,6 +187,7 @@ def chat(session_id):
                     'message': 'Chat saved successfully',
                     'data': {
                         'chat_id': new_chat_user.id,
+                        'bot_chat_id': new_chat_bot.id,
                         'text_user': text,
                         'text_ai': ai_message
                     }
@@ -200,7 +201,7 @@ def chat(session_id):
                     "role": "user",
                     "content": text
                 })
-                ai_message = generate_response_35(chat_data)
+                ai_message = generate_response_4(chat_data)
 
                 new_chat_user = Chat(
                     session_id=new_session.id,
@@ -221,6 +222,7 @@ def chat(session_id):
                     'data': {
                         'session_id': new_session.id,
                         'chat_id': new_chat_user.id,
+                        'bot_chat_id': new_chat_bot.id,
                         'text_user': text,
                         'text_ai': ai_message
                     }
@@ -279,7 +281,7 @@ def chat(session_id):
                     "content": content
                 })
 
-            ai_message = generate_response_35(chat_data)
+            ai_message = generate_response_4(chat_data)
 
             new_chat_user = Chat(
                 session_id=session_id,
