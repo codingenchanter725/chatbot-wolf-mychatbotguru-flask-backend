@@ -1,7 +1,7 @@
 import os
 import jwt
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_migrate import Migrate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -532,6 +532,24 @@ def get_admin_prompt():
                 })
     return chat_data
 
+
+@app.route('/download/transcript/<int:session_id>', methods=['GET'])
+def download_transcript_by_user(session_id):
+    chats = Chat.query.filter_by(session_id=session_id)
+    chat_history = "Chat history\n\n\n"
+
+    for chat in chats:
+        if chat.is_show == False:
+            continue
+        if chat.is_bot:
+            chat_history += f'Bot: ${chat.text}\n\n'
+        else:
+            chat_history += f'User: ${chat.text}\n\n'
+
+    response = make_response(chat_history)
+    response.headers['Content-Disposition'] = 'attachment; filename=transcript.txt'
+    response.headers['Content-Type'] = 'text/plain'
+    return response
 
 if __name__ == "__main__":
     app.run(port=8000)
