@@ -487,6 +487,7 @@ def analysis(current_user):
                 chat_len = len(chats)
                 first_chat: datetime = chats[0].updated_at if chat_len > 0 else 0
                 last_chat: datetime = chats[-1].updated_at if chat_len > 0 else 0
+                if user.is_admin: continue
                 duration = (
                     last_chat - first_chat).total_seconds() if first_chat and last_chat else 0
 
