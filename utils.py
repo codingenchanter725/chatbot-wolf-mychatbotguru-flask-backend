@@ -8,8 +8,8 @@ def generate_unique_filename():
     unique_filename = timestamp + random_string
     return unique_filename
 
-def getS_short_type_from_real_type(type):
-    print("getS_short_type_from_real_type", type)
+def get_short_type_from_real_type(type):
+    print("get_short_type_from_real_type", type)
     if type == 'text/plain': return 'txt'
     elif type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': return 'docx'
     elif type == 'application/msword': return 'doc'

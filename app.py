@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Session, Chat, FAQ, File
 from middleware import token_required
 from helper import generate_response_4, convert_file_to_text
-from utils import generate_unique_filename, getS_short_type_from_real_type, split_string
+from utils import generate_unique_filename, get_short_type_from_real_type, split_string
 
 app = Flask(__name__)
 CORS(app, origins=['*'])
@@ -249,62 +249,71 @@ def chat(session_id):
                 return f'Error saving the file: {str(e)}', 500
 
             file_content = convert_file_to_text(
-                file_path, getS_short_type_from_real_type(file_type))
+                file_path, get_short_type_from_real_type(file_type))
+            print(file_content)
 
-            new_file = File(
-                origin_name=origin_name,
-                size=file_size,
-                type=file_type,
-                path='/'+file_path,
-                text=file_content
-            )
-            db.session.add(new_file)
-            db.session.commit()
+            # new_file = File(
+            #     origin_name=origin_name,
+            #     size=file_size,
+            #     type=file_type,
+            #     path='/'+file_path,
+            #     text=file_content
+            # )
+            # db.session.add(new_file)
+            # db.session.commit()
 
-            content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
+            # content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
 
-            chats = Chat.query.filter_by(
-                session_id=session_id).order_by(Chat.updated_at.desc())
-            chat_data = []
-            for chat in chats:
-                if chat.is_include == False:
-                    continue
-                chat_data.append({
-                    "role": "system" if chat.is_bot == 'true' else "user",
-                    "content": chat.text
-                })
+            # chats = Chat.query.filter_by(
+            #     session_id=session_id).order_by(Chat.updated_at.desc())
+            # chat_data = []
+            # for chat in chats:
+            #     if chat.is_include == False:
+            #         continue
+            #     chat_data.append({
+            #         "role": "system" if chat.is_bot == 'true' else "user",
+            #         "content": chat.text
+            #     })
 
-            content_array = split_string(content_text, 12000)
-            for content in content_array:
-                chat_data.append({
-                    "role": "user",
-                    "content": content
-                })
+            # content_array = split_string(content_text, 12000)
+            # for content in content_array:
+            #     chat_data.append({
+            #         "role": "user",
+            #         "content": content
+            #     })
 
-            ai_message = generate_response_4(chat_data)
+            # ai_message = generate_response_4(chat_data)
 
-            new_chat_user = Chat(
-                session_id=session_id,
-                text=text,
-                file_id=new_file.id
-            )
-            db.session.add(new_chat_user)
-            db.session.commit()
+            # new_chat_user = Chat(
+            #     session_id=session_id,
+            #     text=text,
+            #     file_id=new_file.id
+            # )
+            # db.session.add(new_chat_user)
+            # db.session.commit()
 
-            new_chat_bot = Chat(
-                session_id=session_id,
-                text=ai_message,
-                is_bot=True
-            )
-            db.session.add(new_chat_bot)
-            db.session.commit()
+            # new_chat_bot = Chat(
+            #     session_id=session_id,
+            #     text=ai_message,
+            #     is_bot=True
+            # )
+            # db.session.add(new_chat_bot)
+            # db.session.commit()
 
+            # return jsonify({
+            #     'message': 'OK',
+            #     'data': {
+            #         'chat_id': '0',
+            #         'text_user': text,
+            #         'text_ai': ai_message
+            #     }
+            # })
             return jsonify({
                 'message': 'OK',
                 'data': {
                     'chat_id': '0',
-                    'text_user': text,
-                    'text_ai': ai_message
+                    'text_user': 'text',
+                    'text_ai': file_content
                 }
             })
     else:
@@ -548,6 +557,27 @@ def download_transcript_by_user(session_id):
 
     response = make_response(chat_history)
     response.headers['Content-Disposition'] = 'attachment; filename=transcript.txt'
+    response.headers['Content-Type'] = 'text/plain'
+    return response
+
+@app.route('/download/user/<int:user_id>', methods=['GET'])
+def download_user_transcript_by_admin(user_id):
+    print(user_id)
+    session = Session.query.filter_by(user_id=user_id).first()
+    print(session.id)
+    chats = Chat.query.filter_by(session_id=session.id)
+    chat_history = "Chat history\n\n\n"
+
+    for chat in chats:
+        if chat.is_show == False:
+            continue
+        if chat.is_bot:
+            chat_history += f'Bot: {chat.text}\n\n'
+        else:
+            chat_history += f'User: {chat.text}\n\n'
+
+    response = make_response(chat_history)
+    response.headers['Content-Disposition'] = 'attachment; filename=history.txt'
     response.headers['Content-Type'] = 'text/plain'
     return response
 

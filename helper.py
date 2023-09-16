@@ -2,11 +2,9 @@ import openai
 import os
 import string
 from dotenv import load_dotenv
-# from langchain.document_loaders import UnstructuredPDFLoader
-# from langchain.text_splitter import RecursiveCharacterTextSplitter
-# from PyPDF2 import PdfReader
+import PyPDF2
 import pandas as pd
-# from docx import Document
+import docx
 load_dotenv()
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
@@ -52,28 +50,17 @@ def read_text_from_txt(file_path):
     return text
 
 
-# def convert_pdf_text(file_path):
-#     if (os.path.exists(file_path)):
-#         loader = UnstructuredPDFLoader(file_path)
-#         data = loader.load()
-#         splitter = RecursiveCharacterTextSplitter(
-#             chunk_size=1000, chunk_overlap=0)
-#         texts = splitter.split_documents(data)
-#         res: string = ""
-#         for text in texts:
-#             res = res + text.page_content
-#         return res
-#     return ""
+def extract_text_from_pdf(pdf_path):
+    text = ""
+    with open(pdf_path, 'rb') as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+        num_pages = len(pdf_reader.pages)
 
+        for page_num in range(num_pages):
+            page = pdf_reader.pages[page_num]
+            text += page.extract_text()
 
-# def extract_text_from_pdf(file_path):
-#     text = ""
-#     with open(file_path, 'rb') as file:
-#         pdf = PdfReader(file)
-#         for page in pdf.pages:
-#             text += page.extract_text()
-
-#     return text
+    return text
 
 
 def extract_text_from_excel(file_path):
@@ -83,19 +70,22 @@ def extract_text_from_excel(file_path):
     return text
 
 
-# def extract_text_from_docx(file_path):
-#     doc = Document(file_path)
-#     text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+def extract_text_from_docx(file_path):
+    text = ""
+    doc = docx.Document(file_path)
 
-#     return text
+    for paragraph in doc.paragraphs:
+        text += paragraph.text + "\n"
+
+    return text
+
 
 def convert_file_to_text(file_path, type):
     print("convert_file_to_text", type)
-    return "This is the text from the attachment"
     if type == 'doc':
         return 'doc'
     if type == 'docx':
-        return 'docx'
+        return extract_text_from_docx(file_path)
     elif type == 'pdf':
         return extract_text_from_pdf(file_path)
     elif type == 'txt':
