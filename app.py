@@ -250,70 +250,61 @@ def chat(session_id):
 
             file_content = convert_file_to_text(
                 file_path, get_short_type_from_real_type(file_type))
-            print(file_content)
 
-            # new_file = File(
-            #     origin_name=origin_name,
-            #     size=file_size,
-            #     type=file_type,
-            #     path='/'+file_path,
-            #     text=file_content
-            # )
-            # db.session.add(new_file)
-            # db.session.commit()
+            new_file = File(
+                origin_name=origin_name,
+                size=file_size,
+                type=file_type,
+                path='/'+file_path,
+                text=file_content
+            )
+            db.session.add(new_file)
+            db.session.commit()
 
-            # content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
+            content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
 
-            # chats = Chat.query.filter_by(
-            #     session_id=session_id).order_by(Chat.updated_at.desc())
-            # chat_data = []
-            # for chat in chats:
-            #     if chat.is_include == False:
-            #         continue
-            #     chat_data.append({
-            #         "role": "system" if chat.is_bot == 'true' else "user",
-            #         "content": chat.text
-            #     })
+            chats = Chat.query.filter_by(
+                session_id=session_id).order_by(Chat.updated_at.desc())
+            chat_data = []
+            for chat in chats:
+                if chat.is_include == False:
+                    continue
+                chat_data.append({
+                    "role": "system" if chat.is_bot == 'true' else "user",
+                    "content": chat.text
+                })
 
-            # content_array = split_string(content_text, 12000)
-            # for content in content_array:
-            #     chat_data.append({
-            #         "role": "user",
-            #         "content": content
-            #     })
+            content_array = split_string(content_text, 12000)
+            for content in content_array:
+                chat_data.append({
+                    "role": "user",
+                    "content": content
+                })
 
-            # ai_message = generate_response_4(chat_data)
+            ai_message = generate_response_4(chat_data)
 
-            # new_chat_user = Chat(
-            #     session_id=session_id,
-            #     text=text,
-            #     file_id=new_file.id
-            # )
-            # db.session.add(new_chat_user)
-            # db.session.commit()
+            new_chat_user = Chat(
+                session_id=session_id,
+                text=text,
+                file_id=new_file.id
+            )
+            db.session.add(new_chat_user)
+            db.session.commit()
 
-            # new_chat_bot = Chat(
-            #     session_id=session_id,
-            #     text=ai_message,
-            #     is_bot=True
-            # )
-            # db.session.add(new_chat_bot)
-            # db.session.commit()
+            new_chat_bot = Chat(
+                session_id=session_id,
+                text=ai_message,
+                is_bot=True
+            )
+            db.session.add(new_chat_bot)
+            db.session.commit()
 
-            # return jsonify({
-            #     'message': 'OK',
-            #     'data': {
-            #         'chat_id': '0',
-            #         'text_user': text,
-            #         'text_ai': ai_message
-            #     }
-            # })
             return jsonify({
                 'message': 'OK',
                 'data': {
                     'chat_id': '0',
-                    'text_user': 'text',
-                    'text_ai': file_content
+                    'text_user': text,
+                    'text_ai': ai_message
                 }
             })
     else:
