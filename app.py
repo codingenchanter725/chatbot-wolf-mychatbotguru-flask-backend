@@ -511,26 +511,27 @@ def analysis(current_user):
 
 def get_admin_prompt():
     admin_user = User.query.filter_by(is_admin=True).first()
-    admin_session = Session.query.filter_by(
-        user_id=admin_user.id).first()
-    admin_chats = Chat.query.filter_by(session_id=admin_session.id)
     chat_data = []
-    for chat in admin_chats:
-        if chat.is_include == False:
-            continue
-        chat_data.append({
-            "role": "system" if chat.is_bot == 'true' else "user",
-            "content": chat.text
-        })
-        if chat.file_id:
-            file = File.query.filter_by(id=chat.file_id).first()
-            file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
-            content_array = split_string(file_content, 12000)
-            for content in content_array:
-                chat_data.append({
-                    "role": "user",
-                    "content": content
-                })
+    if admin_user:
+        admin_session = Session.query.filter_by(
+            user_id=admin_user.id).first()
+        admin_chats = Chat.query.filter_by(session_id=admin_session.id)
+        for chat in admin_chats:
+            if chat.is_include == False:
+                continue
+            chat_data.append({
+                "role": "system" if chat.is_bot == 'true' else "user",
+                "content": chat.text
+            })
+            if chat.file_id:
+                file = File.query.filter_by(id=chat.file_id).first()
+                file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
+                content_array = split_string(file_content, 12000)
+                for content in content_array:
+                    chat_data.append({
+                        "role": "user",
+                        "content": content
+                    })
     return chat_data
 
 
