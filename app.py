@@ -14,7 +14,7 @@ from helper import generate_response_4, convert_file_to_text
 from utils import generate_unique_filename, get_short_type_from_real_type, split_string
 
 app = Flask(__name__)
-CORS(app, origins=['*'])
+CORS(app, origins=['https://afrilabsgathering.com', 'http://127.0.0.1'])
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DB_URL')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 db.init_app(app)
