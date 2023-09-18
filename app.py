@@ -276,6 +276,7 @@ def chat(session_id):
 
             content_array = split_string(content_text, 8002) # 8192
             for content in content_array:
+                print(len(content), "\n")
                 chat_data.append({
                     "role": "user",
                     "content": content
