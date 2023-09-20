@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Session, Chat, FAQ, File
 from middleware import token_required
 from helper import generate_response_4, convert_file_to_text
-from utils import generate_unique_filename, get_short_type_from_real_type, split_string
+from utils import generate_unique_filename, get_short_type_from_real_type, optimize_string
 
 app = Flask(__name__)
 CORS(app, origins=['*'])
@@ -104,7 +104,7 @@ def admin_login():
         return jsonify({'message': 'Bad request'}), 404
 
 
-@app.route("/chats/<int:session_id>", methods=['GET', 'POST'])
+@app.route("/chats/<int:session_id>", methods=['GET', 'POST', 'DELETE'])
 def chat(session_id):
     if request.method == 'GET':
         session = Session.query.filter_by(id=session_id).first()
@@ -274,7 +274,7 @@ def chat(session_id):
                     "content": chat.text
                 })
 
-            content_array = split_string(content_text, 6002) # 8192
+            content_array = optimize_string(content_text, 500) # 8192
             for content in content_array:
                 print(len(content), "\n")
                 chat_data.append({
@@ -308,6 +308,22 @@ def chat(session_id):
                     'text_ai': ai_message
                 }
             })
+    elif request.method == "DELETE":
+        chat_id = session_id
+        chat = Chat.query.filter_by(id=chat_id).first()
+        if chat:
+            db.session.delete(chat)
+            db.session.commit()
+            return jsonify({
+                'message': 'Deleted successfully', 
+                'chat_id': chat_id,
+            })
+        else:
+            return jsonify({
+                'message': 'Chat_id doesn\'t exist', 
+                'chat_id': chat_id
+            })
+
     else:
         return jsonify({'message': 'Bad request'}), 404
 
@@ -459,13 +475,20 @@ def handle_user(current_user, user_id):
 @token_required
 def analysis(current_user):
     if request.method == "GET":
-        # Replace with your start time
+        start_time_second = request.args.get('start_time')
+        end_time_second = request.args.get('end_time')
         start_time = datetime(2022, 1, 1, 0, 0, 0)
-        # Replace with your end time
-        end_time = datetime(2024, 1, 31, 23, 59, 59)
+        end_time = datetime.now()
+        print("start_time_second", start_time_second)
+        print("end_time_second", end_time_second)
+        if start_time_second:
+            start_time = datetime.fromtimestamp(int(start_time_second))
+        if end_time_second:
+            end_time = datetime.fromtimestamp(int(end_time_second))
         chat_count = Chat.query.filter(
             Chat.updated_at >= start_time, Chat.updated_at <= end_time).count()
-        users = User.query.filter_by()
+    
+        users = User.query.filter(User.updated_at >= start_time, User.updated_at <= end_time)
         user_count = users.count()
 
         total_chat_count_by_user = 0
@@ -491,7 +514,7 @@ def analysis(current_user):
                 if max_duration < duration:
                     max_duration = duration
 
-        average_chat_count_by_user = total_chat_count_by_user / user_count
+        average_chat_count_by_user = total_chat_count_by_user / user_count if user_count else 1
         total_download_count = db.session.query(func.sum(Session.download_count)).scalar()
 
         print(total_download_count)
@@ -527,7 +550,7 @@ def get_admin_prompt():
             if chat.file_id:
                 file = File.query.filter_by(id=chat.file_id).first()
                 file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
-                content_array = split_string(file_content, 12000)
+                content_array = optimize_string(file_content, 500)
                 for content in content_array:
                     chat_data.append({
                         "role": "user",
@@ -538,6 +561,10 @@ def get_admin_prompt():
 
 @app.route('/download/transcript/<int:session_id>', methods=['GET'])
 def download_transcript_by_user(session_id):
+    session = Session.query.filter_by(id=session_id).first()
+    if session:
+        session.download_count = session.download_count + 1
+        db.session.commit()
     chats = Chat.query.filter_by(session_id=session_id)
     chat_history = "Chat history\n\n\n"
 

@@ -19,3 +19,23 @@ def get_short_type_from_real_type(type):
 
 def split_string(string, max_length):
     return [string[i:i+max_length] for i in range(0, len(string), max_length)]
+
+
+def optimize_string(script_tokens, batch_size):
+    return split_string(script_tokens, batch_size)
+    # prompt_arr = []
+    # for i in range(0, len(script_tokens), batch_size):
+    #     if i < batch_size:
+    #         before_context = ""
+    #     else:
+    #         before_context = " ".join(script_tokens[i-batch_size:i])
+    #     text_to_edit = " ".join(script_tokens[i:i+batch_size])
+    #     if i+batch_size*2 >= len(script_tokens):
+    #         after_context = ""
+    #     else:
+    #         after_context = " ".join(script_tokens[i+batch_size:i+batch_size*2])
+        
+    #     prompt = f"Please proofread, rewrite, and improve of the following text inside the brackets (in the context that it is a description script for a https://afrilabsgathering.com/), considering the context given before and after it: before:\"{before_context}\" text to edit:{text_to_edit} after:\"{after_context}\" []"
+    #     prompt_arr.append(prompt)
+        
+    # return prompt_arr
