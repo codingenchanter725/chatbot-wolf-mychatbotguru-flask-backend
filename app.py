@@ -573,7 +573,7 @@ def download_transcript_by_user(session_id):
     for chat in chats:
         if chat.is_show == False:
             continue
-        if chat.is_bot:
+        if chat.is_bot == 'true':
             chat_history += f'Bot: {chat.text}\n\n'
         else:
             chat_history += f'User: {chat.text}\n\n'
