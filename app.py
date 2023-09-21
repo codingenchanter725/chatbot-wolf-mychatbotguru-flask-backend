@@ -539,24 +539,25 @@ def get_admin_prompt():
     if admin_user:
         admin_session = Session.query.filter_by(
             user_id=admin_user.id).first()
-        admin_chats = Chat.query.filter_by(session_id=admin_session.id)
-        if admin_chats:
-            for chat in admin_chats:
-                if chat.is_include == False:
-                    continue
-                chat_data.append({
-                    "role": "system" if chat.is_bot == 'true' else "user",
-                    "content": chat.text
-                })
-                if chat.file_id:
-                    file = File.query.filter_by(id=chat.file_id).first()
-                    file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
-                    content_array = optimize_string(file_content, 500)
-                    for content in content_array:
-                        chat_data.append({
-                            "role": "user",
-                            "content": content
-                        })
+        if admin_session:
+            admin_chats = Chat.query.filter_by(session_id=admin_session.id)
+            if admin_chats:
+                for chat in admin_chats:
+                    if chat.is_include == False:
+                        continue
+                    chat_data.append({
+                        "role": "system" if chat.is_bot == 'true' else "user",
+                        "content": chat.text
+                    })
+                    if chat.file_id:
+                        file = File.query.filter_by(id=chat.file_id).first()
+                        file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
+                        content_array = optimize_string(file_content, 500)
+                        for content in content_array:
+                            chat_data.append({
+                                "role": "user",
+                                "content": content
+                            })
     return chat_data
 
 
