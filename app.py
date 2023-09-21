@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import db, User, Session, Chat, FAQ, File
 from middleware import token_required
-from helper import generate_response_4, convert_file_to_text
+from helper import generate_response_35, convert_file_to_text
 from utils import generate_unique_filename, get_short_type_from_real_type, optimize_string
 
 app = Flask(__name__)
@@ -166,7 +166,7 @@ def chat(session_id):
                     "role": "user",
                     "content": text
                 })
-                ai_message = generate_response_4(chat_data)
+                ai_message = generate_response_35(chat_data)
 
                 new_chat_user = Chat(
                     session_id=session.id,
@@ -201,7 +201,7 @@ def chat(session_id):
                     "role": "user",
                     "content": text
                 })
-                ai_message = generate_response_4(chat_data)
+                ai_message = generate_response_35(chat_data)
 
                 new_chat_user = Chat(
                     session_id=new_session.id,
@@ -282,7 +282,7 @@ def chat(session_id):
                     "content": content
                 })
 
-            ai_message = generate_response_4(chat_data)
+            ai_message = generate_response_35(chat_data)
 
             new_chat_user = Chat(
                 session_id=session_id,
@@ -572,9 +572,9 @@ def download_transcript_by_user(session_id):
         if chat.is_show == False:
             continue
         if chat.is_bot:
-            chat_history += f'Bot: ${chat.text}\n\n'
+            chat_history += f'Bot: {chat.text}\n\n'
         else:
-            chat_history += f'User: ${chat.text}\n\n'
+            chat_history += f'User: {chat.text}\n\n'
 
     response = make_response(chat_history)
     response.headers['Content-Disposition'] = 'attachment; filename=transcript.txt'
