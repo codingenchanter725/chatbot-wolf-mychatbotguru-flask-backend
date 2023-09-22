@@ -1,7 +1,9 @@
 import os
+from io import StringIO
 import jwt
+import csv
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, Response
 from flask_migrate import Migrate
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -585,7 +587,6 @@ def download_transcript_by_user(session_id):
 
 @app.route('/download/user/<int:user_id>', methods=['GET'])
 def download_user_transcript_by_admin(user_id):
-    print(user_id)
     session = Session.query.filter_by(user_id=user_id).first()
     print(session.id)
     chats = Chat.query.filter_by(session_id=session.id)
@@ -602,6 +603,25 @@ def download_user_transcript_by_admin(user_id):
     response = make_response(chat_history)
     response.headers['Content-Disposition'] = 'attachment; filename=history.txt'
     response.headers['Content-Type'] = 'text/plain'
+    return response
+
+@app.route('/download/user/list', methods=['GET'])
+def download_user_list():
+    users = User.query.filter_by()
+    header = ['No', 'First Name', "Last Name", "Email", "Phone"]
+    rows = []
+
+    for counter, user in enumerate(users):
+        rows.append([counter + 1, user.first_name, user.last_name, user.email, user.phone])
+
+    csv_data = StringIO()
+    writer = csv.writer(csv_data)
+    writer.writerow(header)
+    writer.writerows(rows)
+
+    response = Response(csv_data.getvalue(), content_type='text/csv')
+    response.headers['Content-Disposition'] = 'attachment; filename=users.csv'
+
     return response
 
 if __name__ == "__main__":
