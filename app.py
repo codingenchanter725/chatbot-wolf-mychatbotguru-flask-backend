@@ -494,6 +494,7 @@ def analysis(current_user):
         user_count = users.count()
 
         total_chat_count_by_user = 0
+        total_session_count = 0
         max_chat_count_by_one_user = 0
         max_duration = 0
 
@@ -509,6 +510,7 @@ def analysis(current_user):
                     last_chat - first_chat).total_seconds() if first_chat and last_chat else 0
 
                 total_chat_count_by_user += chat_len
+                total_session_count += 1
 
                 if max_chat_count_by_one_user < chat_len:
                     max_chat_count_by_one_user = chat_len
@@ -524,6 +526,7 @@ def analysis(current_user):
             'message': "OK",
             'data': {
                 'chat_count': chat_count,
+                'session_count': total_session_count,
                 'user_count': user_count,
                 'average_chat_count_by_user': average_chat_count_by_user,
                 'max_duration': max_duration,
