@@ -17,6 +17,7 @@ migrations/
 
 # Environment variables
 .env
+.flaskenv
 
 # Dependency directories
 lib/
