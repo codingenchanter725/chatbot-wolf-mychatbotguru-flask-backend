@@ -43,6 +43,7 @@ class Session(BaseModel):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     download_count = db.Column(db.Integer, default=0)
+    is_admin = db.Column(db.Boolean, default=False)
 
     chats = db.relationship('Chat', backref='session', lazy=True)
 
@@ -54,11 +55,12 @@ class Chat(BaseModel):
     __tablename__ = "chats"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     text = db.Column(db.String, nullable=True, default="")
-    is_bot = db.Column(db.String, default=False)  # AI chat
+    is_bot = db.Column(db.Boolean, default=False)  # AI chat
     # include for the prompt but shouldn't show for the user
-    is_show = db.Column(db.String, default=True)
+    is_show = db.Column(db.Boolean, default=True)
     # should show for the user but not include for the prompt
-    is_include = db.Column(db.String, default=True)
+    is_include = db.Column(db.Boolean, default=True)
+    is_initial_prompt = db.Column(db.Boolean, default=False)
 
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'))
     file_id = db.Column(db.Integer, db.ForeignKey(
@@ -71,7 +73,7 @@ class Chat(BaseModel):
 class FAQ(BaseModel):
     __tablename__ = "faqs"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    text = db.Column(db.String, nullable=True, default="")
+    text = db.Column(db.Text, nullable=True, default="")
 
     def __repr__(self):
         return f"User('{self.text}')"
@@ -80,8 +82,8 @@ class FAQ(BaseModel):
 class File(BaseModel):
     __tablename__ = "files"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    origin_name = db.Column(db.String(50), nullable=True, default="")
+    origin_name = db.Column(db.String, nullable=True, default="")
     type = db.Column(db.String, nullable=True, default="")
     size = db.Column(db.Integer, nullable=True, default=0)
     path = db.Column(db.String, nullable=True, default="")
-    text = db.Column(db.String, nullable=True, default="")
+    text = db.Column(db.Text, nullable=True, default="")

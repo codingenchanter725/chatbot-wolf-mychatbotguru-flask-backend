@@ -108,8 +108,18 @@ def admin_login():
 
 @app.route("/chats/<int:session_id>", methods=['GET', 'POST', 'DELETE'])
 def chat(session_id):
+    chat_data = []
+    is_admin = request.args.get('is_admin')
     if request.method == 'GET':
         session = Session.query.filter_by(id=session_id).first()
+        if is_admin:
+            session = Session.query.filter_by(is_admin=True).first()
+            if not session:
+                session = Session(
+                    is_admin=True
+                )
+                db.session.add(session)
+                db.session.commit()
         chat_data = []
         user_data = {}
         if session:
@@ -119,7 +129,7 @@ def chat(session_id):
                 chat_detail = {
                     'id': chat.id,
                     'text': chat.text,
-                    'is_bot': chat.is_bot == 'true',
+                    'is_bot': chat.is_bot == True,
                     'datetime': chat.updated_at,
                 }
                 if chat.file_id:
@@ -143,92 +153,84 @@ def chat(session_id):
                 }
             else:
                 user_data = {}
-
+            return jsonify({
+                'message': 'OK',
+                'data': chat_data,
+                'user': user_data, 
+                'session_id': session.id
+            })
         return jsonify({
             'message': 'OK',
-            'data': chat_data,
-            'user': user_data
+            'data': [],
+            'user': {}, 
+            'session_id': 0
         })
     elif request.method == 'POST':
-        if request.is_json:
-            text = request.json['text']
-            session = Session.query.filter_by(id=session_id).first()
-            chat_data = get_admin_prompt()
-            if session:
+        session = Session.query.filter_by(id=session_id).first()
+        chat_data = get_admin_prompt()
+        new_session = None
+
+        if session:
+            if not is_admin:
                 chats = Chat.query.filter_by(
                     session_id=session_id).order_by(Chat.updated_at.desc())
                 for chat in chats:
                     if chat.is_include == False:
                         continue
                     chat_data.append({
-                        "role": "system" if chat.is_bot == 'true' else "user",
+                        "role": "system" if chat.is_bot == True else "user",
                         "content": chat.text
                     })
-                chat_data.append({
-                    "role": "user",
-                    "content": text
-                })
-                ai_message = generate_response_35(chat_data)
+                    if chat.file_id:
+                        file = File.query.filter_by(id=chat.file_id).first()
+                        file_content = "" + file.text
+                        content_array = optimize_string(file_content, 500)
+                        for content in content_array:
+                            chat_data.append({
+                                "role": "user",
+                                "content": content
+                            })
+        else:
+            new_session = Session()
+            db.session.add(new_session)
+            db.session.commit()
+            session = new_session
+            print('new_session_id', session.id)
+        print('new_session_id1', session.id)
 
-                new_chat_user = Chat(
-                    session_id=session.id,
-                    text=text
-                )
-                db.session.add(new_chat_user)
-                db.session.commit()
+        if request.is_json:
+            text = request.json['text']
+            chat_data.append({
+                "role": "user",
+                "content": text
+            })
+            ai_message = generate_response_35(chat_data)
 
-                new_chat_bot = Chat(
-                    session_id=session.id,
-                    text=ai_message,
-                    is_bot=True
-                )
-                db.session.add(new_chat_bot)
-                db.session.commit()
+            new_chat_user = Chat(
+                session_id=session.id,
+                text=text
+            )
+            db.session.add(new_chat_user)
+            db.session.commit()
 
-                return jsonify({
-                    'message': 'Chat saved successfully',
-                    'data': {
-                        'chat_id': new_chat_user.id,
-                        'bot_chat_id': new_chat_bot.id,
-                        'text_user': text,
-                        'text_ai': ai_message
-                    }
-                })
-            else:
-                new_session = Session()
-                db.session.add(new_session)
-                db.session.commit()
+            new_chat_bot = Chat(
+                session_id=session.id,
+                text=ai_message,
+                is_bot=True
+            )
+            db.session.add(new_chat_bot)
+            db.session.commit()
 
-                chat_data.append({
-                    "role": "user",
-                    "content": text
-                })
-                ai_message = generate_response_35(chat_data)
-
-                new_chat_user = Chat(
-                    session_id=new_session.id,
-                    text=text
-                )
-                db.session.add(new_chat_user)
-                db.session.commit()
-
-                new_chat_bot = Chat(
-                    session_id=new_session.id,
-                    text=ai_message,
-                    is_bot=True
-                )
-                db.session.add(new_chat_bot)
-                db.session.commit()
-                return jsonify({
-                    'message': 'Session created and chat saved successfully',
-                    'data': {
-                        'session_id': new_session.id,
-                        'chat_id': new_chat_user.id,
-                        'bot_chat_id': new_chat_bot.id,
-                        'text_user': text,
-                        'text_ai': ai_message
-                    }
-                })
+            return jsonify({
+                'message': 'Chat saved successfully' if not new_session else 'Session created and chat saved successfully',
+                'data': {
+                    'session_id': new_session.id if new_session else None,
+                    'chat_id': new_chat_user.id,
+                    'bot_chat_id': new_chat_bot.id,
+                    'text_user': text,
+                    'text_ai': ai_message
+                }
+            })
         else:
             file = request.files['file']
             if file.filename == '':
@@ -263,18 +265,7 @@ def chat(session_id):
             db.session.add(new_file)
             db.session.commit()
 
-            content_text = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + text + "\n" + file_content
-
-            chats = Chat.query.filter_by(
-                session_id=session_id).order_by(Chat.updated_at.desc())
-            chat_data = []
-            for chat in chats:
-                if chat.is_include == False:
-                    continue
-                chat_data.append({
-                    "role": "system" if chat.is_bot == 'true' else "user",
-                    "content": chat.text
-                })
+            content_text = "" + text + "\n" + file_content
 
             content_array = optimize_string(content_text, 500) # 8192
             for content in content_array:
@@ -287,7 +278,7 @@ def chat(session_id):
             ai_message = generate_response_35(chat_data)
 
             new_chat_user = Chat(
-                session_id=session_id,
+                session_id=session.id,
                 text=text,
                 file_id=new_file.id
             )
@@ -295,7 +286,7 @@ def chat(session_id):
             db.session.commit()
 
             new_chat_bot = Chat(
-                session_id=session_id,
+                session_id=session.id,
                 text=ai_message,
                 is_bot=True
             )
@@ -303,9 +294,11 @@ def chat(session_id):
             db.session.commit()
 
             return jsonify({
-                'message': 'OK',
+                'message': 'Chat saved successfully' if not new_session else 'Session created and chat saved successfully',
                 'data': {
-                    'chat_id': '0',
+                    'session_id': new_session.id if new_session else None,
+                    'chat_id': new_chat_user.id,
+                    'bot_chat_id': new_chat_bot.id,
                     'text_user': text,
                     'text_ai': ai_message
                 }
@@ -330,302 +323,76 @@ def chat(session_id):
         return jsonify({'message': 'Bad request'}), 404
 
 
-@app.route("/faq/<int:faq_id>", methods=['GET', 'POST', 'DELETE'])
-def handle_faq(faq_id):
-    if request.method == 'GET':
-        faqs = FAQ.query.filter_by()
-        faq_data = []
-        for faq in faqs:
-            faq_data.append({
-                'id': faq.id,
-                'text': faq.text
-            })
-        return jsonify({
-            'message': 'OK',
-            'data': faq_data,
-        })
-
-    elif request.method == 'POST':
-        data = request.json
-        text = data['text']
-
-        try:
-            faq = FAQ.query.get(faq_id)
-
-            if faq:
-                faq.text = text
-                db.session.commit()
-                return jsonify({
-                    'message': 'User updated successfully',
-                    'text': text,
-                })
-            else:
-                new_faq = FAQ(
-                    text=text,
-                )
-                db.session.add(new_faq)
-                db.session.commit()
-
-                return jsonify({
-                    'message': 'User created successfully',
-                    'text': text,
-                    'faq_id': new_faq.id
-                })
-        except IntegrityError as e:
-            return jsonify({'message': 'An error occurred while creating the user'}), 500
-
-    elif request.method == 'DELETE':
-        faq = FAQ.query.get(faq_id)
-        if faq:
-            db.session.delete(faq)
-            db.session.commit()
-            return jsonify({'message': 'User deleted successfully'})
-        else:
-            return jsonify({'message': 'FAQ doesn\'t exact'}), 400
-
-
-@app.route('/users/<int:user_id>', methods=['GET', 'POST', 'DELETE'])
-@token_required
-def handle_user(current_user, user_id):
-    if request.method == 'GET':
-
-        users = User.query.filter_by()
-        user_data = []
-        for user in users:
-            user_data.append({
-                'id': user.id,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'email': user.email,
-                'phone': user.phone,
-            })
-        return jsonify({
-            'message': 'OK',
-            'data': user_data,
-        })
-
-    elif request.method == 'POST':
-        user_data = request.get_json()
-        first_name = user_data.get('first_name')
-        last_name = user_data.get('last_name')
-        email = user_data.get('email')
-        phone = user_data.get('phone')
-        password = generate_password_hash(
-            user_data.get['password'], method='sha256')
-
-        try:
-            user = User.query.get(user_id)
-
-            if user:
-                user.phone = phone
-                user.email = email
-                user.first_name = first_name
-                user.last_name = last_name
-                user.password = password
-
-                db.session.commit()
-
-                user_data = {
-                    'id': user.id,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'email': user.email,
-                    'phone': user.phone,
-                    'password': user.password,
-                }
-                return jsonify({
-                    'message': 'User updated successfully',
-                    'user': user_data
-                })
-            else:
-                new_user = User(
-                    first_name=first_name,
-                    last_name=last_name,
-                    email=email,
-                    phone=phone,
-                    password=password,
-                )
-                db.session.add(new_user)
-                db.session.commit()
-
-                user_data = {
-                    'id': new_user.id,
-                    'first_name': new_user.first_name,
-                    'last_name': new_user.last_name,
-                    'email': new_user.email,
-                    'phone': new_user.phone,
-                }
-                return jsonify({
-                    'message': 'User created successfully',
-                    'user': user_data
-                })
-        except IntegrityError as e:
-            db.session.rollback()
-            error_info = str(e.orig)
-            if 'unique constraint' in error_info:
-                return jsonify({'message': 'Email is already taken'}), 400
-            else:
-                return jsonify({'message': 'An error occurred while creating the user'}), 500
-
-    elif request.method == 'DELETE':
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({'message': 'User deleted successfully'})
-
-
-@app.route('/admin', methods=['GET'])
-@token_required
-def analysis(current_user):
+@app.route("/admin/initial_prompt", methods=['GET', 'PUT'])
+def handle_initial_prompt():
     if request.method == "GET":
-        start_time_second = request.args.get('start_time')
-        end_time_second = request.args.get('end_time')
-        start_time = datetime(2022, 1, 1, 0, 0, 0)
-        end_time = datetime.now()
-        print("start_time_second", start_time_second)
-        print("end_time_second", end_time_second)
-        if start_time_second:
-            start_time = datetime.fromtimestamp(int(start_time_second))
-        if end_time_second:
-            end_time = datetime.fromtimestamp(int(end_time_second))
-        chat_count = Chat.query.filter(
-            Chat.updated_at >= start_time, Chat.updated_at <= end_time).count()
-    
-        users = User.query.filter(User.updated_at >= start_time, User.updated_at <= end_time)
-        user_count = users.count()
+        initial_prompt_chat = Chat.query.filter_by(is_initial_prompt=True).first()
+        initial_prompt = ""
+        if initial_prompt_chat:
+            initial_prompt = initial_prompt_chat.text
+            db.session.commit()
+        else:
+            new_session_for_initial_prompt = Session()
+            db.session.add(new_session_for_initial_prompt)
+            db.session.commit()
 
-        total_chat_count_by_user = 0
-        total_session_count = 0
-        max_chat_count_by_one_user = 0
-        max_duration = 0
-
-        for user in users:
-            session = Session.query.filter_by(user_id=user.id).first()
-            if session:
-                chats = Chat.query.filter_by(session_id=session.id).all()
-                chat_len = len(chats)
-                first_chat: datetime = chats[0].updated_at if chat_len > 0 else 0
-                last_chat: datetime = chats[-1].updated_at if chat_len > 0 else 0
-                if user.is_admin: continue
-                duration = (
-                    last_chat - first_chat).total_seconds() if first_chat and last_chat else 0
-
-                total_chat_count_by_user += chat_len
-                total_session_count += 1
-
-                if max_chat_count_by_one_user < chat_len:
-                    max_chat_count_by_one_user = chat_len
-
-                if max_duration < duration:
-                    max_duration = duration
-
-        average_chat_count_by_user = total_chat_count_by_user / user_count if user_count else 1
-        total_download_count = db.session.query(func.sum(Session.download_count)).scalar()
-
-        print(total_download_count)
+            initial_prompt_chat = Chat(
+                session_id=new_session_for_initial_prompt.id,
+                text="",
+                is_initial_prompt=True
+            )
+            db.session.add(initial_prompt_chat)
+            db.session.commit()
         return jsonify({
-            'message': "OK",
+            'message': 'OK',
             'data': {
-                'chat_count': chat_count,
-                'session_count': total_session_count,
-                'user_count': user_count,
-                'average_chat_count_by_user': average_chat_count_by_user,
-                'max_duration': max_duration,
-                'max_chat_count_by_one_user': max_chat_count_by_one_user,
-                'total_download_count': total_download_count,
+                'text': initial_prompt,
+            }
+        })
+    elif request.method == 'PUT':
+        text = request.json['text']
+        initial_prompt_chat = Chat.query.filter_by(is_initial_prompt='True').first()
+        initial_prompt_chat.text = text
+        db.session.commit()
+        return jsonify({
+            'message': 'OK',
+            'data': {
+                'text': text,
             }
         })
     else:
         return jsonify({'message': 'Bad request'}), 404
 
-
 def get_admin_prompt():
-    admin_user = User.query.filter_by(is_admin=True).first()
-    chat_data = []
-    if admin_user:
-        admin_session = Session.query.filter_by(
-            user_id=admin_user.id).first()
-        if admin_session:
-            admin_chats = Chat.query.filter_by(session_id=admin_session.id)
-            if admin_chats:
-                for chat in admin_chats:
-                    if chat.is_include == False:
-                        continue
-                    chat_data.append({
-                        "role": "system" if chat.is_bot == 'true' else "user",
-                        "content": chat.text
-                    })
-                    if chat.file_id:
-                        file = File.query.filter_by(id=chat.file_id).first()
-                        file_content = "This is the details for https://www.afrilabs.com and https://afrilabsgathering.com\n, learn the detail from above description\n" + file.text
-                        content_array = optimize_string(file_content, 500)
-                        for content in content_array:
-                            chat_data.append({
-                                "role": "user",
-                                "content": content
-                            })
+    admin_session = Session.query.filter_by(is_admin=True).first()
+    prompt_chat = Chat.query.filter_by(is_initial_prompt=True).first()
+    initial_prompt = prompt_chat.text
+    chat_data = [
+        {
+            "role": 'user', 
+            'content': initial_prompt
+        }
+    ]
+    if admin_session:
+        admin_chats = Chat.query.filter_by(session_id=admin_session.id)
+        if admin_chats:
+            for chat in admin_chats:
+                if chat.is_include == False:
+                    continue
+                chat_data.append({
+                    "role": "system" if chat.is_bot == True else "user",
+                    "content": chat.text
+                })
+                if chat.file_id:
+                    file = File.query.filter_by(id=chat.file_id).first()
+                    file_content = "" + file.text
+                    content_array = optimize_string(file_content, 500)
+                    for content in content_array:
+                        chat_data.append({
+                            "role": "user",
+                            "content": content
+                        })
     return chat_data
-
-
-@app.route('/download/transcript/<int:session_id>', methods=['GET'])
-def download_transcript_by_user(session_id):
-    session = Session.query.filter_by(id=session_id).first()
-    if session:
-        session.download_count = session.download_count + 1
-        db.session.commit()
-    chats = Chat.query.filter_by(session_id=session_id)
-    chat_history = "Chat history\n\n\n"
-
-    for chat in chats:
-        if chat.is_show == False:
-            continue
-        if chat.is_bot == 'true':
-            chat_history += f'Bot: {chat.text}\n\n'
-        else:
-            chat_history += f'User: {chat.text}\n\n'
-
-    response = make_response(chat_history)
-    response.headers['Content-Disposition'] = 'attachment; filename=transcript.txt'
-    response.headers['Content-Type'] = 'text/plain'
-    return response
-
-@app.route('/download/user/<int:user_id>', methods=['GET'])
-def download_user_transcript_by_admin(user_id):
-    session = Session.query.filter_by(user_id=user_id).first()
-    print(session.id)
-    chats = Chat.query.filter_by(session_id=session.id)
-    chat_history = "Chat history\n\n\n"
-
-    for chat in chats:
-        if chat.is_show == False:
-            continue
-        if chat.is_bot == 'true':
-            chat_history += f'Bot: {chat.text}\n\n'
-        else:
-            chat_history += f'User: {chat.text}\n\n'
-
-    response = make_response(chat_history)
-    response.headers['Content-Disposition'] = 'attachment; filename=history.txt'
-    response.headers['Content-Type'] = 'text/plain'
-    return response
-
-@app.route('/download/user/list', methods=['GET'])
-def download_user_list():
-    users = User.query.filter_by()
-    header = ['No', 'First Name', "Last Name", "Email", "Phone"]
-    rows = []
-
-    for counter, user in enumerate(users):
-        rows.append([counter + 1, user.first_name, user.last_name, user.email, user.phone])
-
-    csv_data = StringIO()
-    writer = csv.writer(csv_data)
-    writer.writerow(header)
-    writer.writerows(rows)
-
-    response = Response(csv_data.getvalue(), content_type='text/csv')
-    response.headers['Content-Disposition'] = 'attachment; filename=users.csv'
-
-    return response
 
 if __name__ == "__main__":
     app.run(port=8000)
